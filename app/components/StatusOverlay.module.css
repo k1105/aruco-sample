@@ -1,0 +1,13 @@
+.bar {
+  display: flex;
+  gap: 12px;
+  padding: 6px 12px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  font-family: var(--font-geist-mono), monospace;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.fps { margin-left: auto; }
