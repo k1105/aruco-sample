@@ -179,10 +179,10 @@ export function estimateSingleMarkerPose(
     // Transform camera position from marker-local to world coordinates
     const worldPos = markerToWorld(camInMarker, def.center, def.rotationToWorld);
 
-    // Extract Euler angles from R^T (camera rotation in marker frame)
-    // R^T gives marker-to-camera rotation; we need camera rotation in world
-    const eulerMarker = rotationMatrixToEuler(R);
-    const worldRot = rotateEulerToWorld(eulerMarker, def.rotationToWorld);
+    // Camera rotation: R^T * C converts marker→OpenCV rotation to
+    // Three.js camera orientation in marker frame, then R_m2w rotates to world.
+    const worldRotMat = cameraRotationInWorld(R, def.rotationToWorld);
+    const worldRot = rotationMatrixToEuler(worldRotMat);
 
     return {
       position: worldPos,
@@ -304,14 +304,53 @@ function rotationMatrixToEuler(R: Float64Array): EulerAngles {
 }
 
 /**
- * Apply marker-to-world rotation offset to camera Euler angles.
- * Simple additive approach (approximate, sufficient for visualization).
+ * Compute the Three.js camera rotation matrix in world coordinates.
+ *
+ * @param R  3×3 row-major Float64Array — marker→OpenCV-camera rotation (from solvePnP/Rodrigues)
+ * @param markerRot  marker's rotationToWorld Euler angles (radians)
+ * @returns 3×3 row-major Float64Array — camera rotation matrix in world frame
+ *
+ * Steps:
+ *  1. R^T * C  (C = diag(1,-1,-1)) converts from OpenCV camera convention
+ *     (Y-down, Z-forward) to Three.js camera convention (Y-up, Z-backward),
+ *     expressed in the marker-local frame.
+ *  2. R_m2w * (R^T * C) rotates into world coordinates.
  */
-function rotateEulerToWorld(euler: EulerAngles, markerRot: EulerAngles): EulerAngles {
-  const RAD2DEG = 180 / Math.PI;
-  return {
-    x: euler.x + markerRot.x * RAD2DEG,
-    y: euler.y + markerRot.y * RAD2DEG,
-    z: euler.z + markerRot.z * RAD2DEG,
-  };
+function cameraRotationInWorld(R: Float64Array, markerRot: EulerAngles): Float64Array {
+  // --- Step 1: RtC = R^T * diag(1, -1, -1) ---
+  // RtC[i][j] = R^T[i][j] * C[j][j]
+  //   j=0: R^T[i][0] =  R[0*3+i]
+  //   j=1: -R^T[i][1] = -R[1*3+i]
+  //   j=2: -R^T[i][2] = -R[2*3+i]
+  const RtC = new Float64Array(9);
+  for (let i = 0; i < 3; i++) {
+    RtC[i * 3 + 0] =  R[0 * 3 + i];
+    RtC[i * 3 + 1] = -R[1 * 3 + i];
+    RtC[i * 3 + 2] = -R[2 * 3 + i];
+  }
+
+  // --- Step 2: build R_m2w = Rz * Ry * Rx from marker Euler angles ---
+  const { x: rx, y: ry, z: rz } = markerRot;
+  const cx = Math.cos(rx), sx = Math.sin(rx);
+  const cy = Math.cos(ry), sy = Math.sin(ry);
+  const cz = Math.cos(rz), sz = Math.sin(rz);
+
+  //  Row-major Rz·Ry·Rx
+  const m00 = cz * cy,  m01 = cz * sy * sx - sz * cx,  m02 = cz * sy * cx + sz * sx;
+  const m10 = sz * cy,  m11 = sz * sy * sx + cz * cx,  m12 = sz * sy * cx - cz * sx;
+  const m20 = -sy,       m21 = cy * sx,                  m22 = cy * cx;
+
+  // --- Step 3: result = R_m2w * RtC ---
+  const Rm2w = [m00, m01, m02, m10, m11, m12, m20, m21, m22];
+  const out = new Float64Array(9);
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 3; j++) {
+      out[i * 3 + j] =
+        Rm2w[i * 3 + 0] * RtC[0 * 3 + j] +
+        Rm2w[i * 3 + 1] * RtC[1 * 3 + j] +
+        Rm2w[i * 3 + 2] * RtC[2 * 3 + j];
+    }
+  }
+
+  return out;
 }

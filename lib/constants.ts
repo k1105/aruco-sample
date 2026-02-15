@@ -41,7 +41,7 @@ export const MARKER_DEFINITIONS: MarkerDefinition[] = [
     face: "right",
     normal: { x: 1, y: 0, z: 0 },
     center: { x: HALF_CUBE, y: 0, z: 0 },
-    rotationToWorld: { x: 0, y: -Math.PI / 2, z: 0 },
+    rotationToWorld: { x: 0, y: Math.PI / 2, z: 0 },
   },
   {
     id: 3,
@@ -55,7 +55,7 @@ export const MARKER_DEFINITIONS: MarkerDefinition[] = [
     face: "left",
     normal: { x: -1, y: 0, z: 0 },
     center: { x: -HALF_CUBE, y: 0, z: 0 },
-    rotationToWorld: { x: 0, y: Math.PI / 2, z: 0 },
+    rotationToWorld: { x: 0, y: -Math.PI / 2, z: 0 },
   },
 ];
 
